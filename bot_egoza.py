@@ -17,7 +17,7 @@ from config import Config, load_config
 config: Config = load_config()
 BOT_TOKEN: str = config.tg_bot.token
 URL = 'https://api.telegram.org/bot'
-redis = Redis(host='5.35.11.130')
+redis = Redis(host='localhost')
 # Создаем объекты бота и диспетчера
 storage = RedisStorage(redis=redis)
 settings_dict = {}
