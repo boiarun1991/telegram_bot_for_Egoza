@@ -1,11 +1,4 @@
-import asyncio
-import os
-import time
-
-from PIL import Image, ImageOps, ImageFont, ImageDraw
 from aiogram import Bot, Dispatcher, F, types
-import requests
-import textwrap
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery, PhotoSize
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import Command, CommandStart, StateFilter
@@ -13,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state, State, StatesGroup
 from aiogram.fsm.storage.redis import RedisStorage, Redis
 from config import Config, load_config
+import photo_editor
 
 config: Config = load_config()
 BOT_TOKEN: str = config.tg_bot.token
@@ -152,11 +146,11 @@ async def process_name_sent(message: Message, state: FSMContext):
     await message.answer(text='🤏 Ещё чуть-чуть...\n\n🤖⚙️ Работаю, ожидайте')
     settings_dict[message.chat.id] = await state.get_data()
     await state.clear()
-    photo_creator = Photo(message.chat.id, f'download_photo_{message.chat.id}.jpg')
-    photo_creator.create_photo(text=settings_dict.get(message.chat.id, {}).get('text_on_photo'),
+    photo_create = photo_editor.Photo(message.chat.id, f'download_photo_{message.chat.id}.jpg')
+    photo_create.create_photo(text=settings_dict.get(message.chat.id, {}).get('text_on_photo'),
                                chat_id=message.chat.id,
                                color=LEXICON.get(settings_dict.get(message.chat.id, {}).get('color')))
-    photo_creator.send_photo_file()
+    photo_create.send_photo_file()
     await message.answer(text='🤗 Рад был помочь\n\n'
                               '😉 До новых встреч!\n\n'
                               '🤖📷 Если вы хотите продолжить, просто отправьте мне новое фото!')
@@ -170,9 +164,10 @@ async def process_color_vote(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text='👌 Хорошо.\n\n🤖 Работаю, ожидайте...')
     settings_dict[callback.message.chat.id] = await state.get_data()
     await state.clear()
-    photo_creator = Photo(callback.message.chat.id, f'download_photo_{callback.message.chat.id}.jpg')
-    photo_creator.paste_watermark(chat_id=callback.message.chat.id)
-    photo_creator.send_photo_file()
+    photo_create = photo_editor.Photo(callback.message.chat.id, f'download_photo_{callback.message.chat.id}.jpg')
+    # photo_creator = Photo(callback.message.chat.id, f'download_photo_{callback.message.chat.id}.jpg')
+    photo_create.paste_watermark(chat_id=callback.message.chat.id)
+    photo_create.send_photo_file()
 
 
 def create_inline_kb(width: int,
@@ -212,172 +207,6 @@ async def process_start_command(message: Message):
                          f'Желаю удачи!')
 
 
-
-#
-#
-class Photo:
-    def __init__(self, chat_id, img):
-        self.chat_id = chat_id
-        self.img = img
-
-    @staticmethod
-    def create_photo(text, chat_id, color=None):
-        colors = {'⚫ Чёрный': 'black',
-                  '🔴 Красный': 'red',
-                  '🔵 Синий': 'blue',
-                  '🟢 Зелёный': 'green',
-                  '💜 Пурпурный': 'purple',
-
-                  '⚪ Белый': 'white',
-                  '❄️Бирюзовый': 'turquoise',
-                  '🌸 Розовый': 'hotpink',
-                  '🟠 Оранжевый': 'orange',
-                  '🟡 Жёлтый': 'yellow',
-                  }
-
-        if color in list(colors)[:5]:
-            stroke_color = 'white'
-        else:
-            stroke_color = 'black'
-
-        def settings_font_cube(wrap_count):
-            settings = {}
-            if wrap_count == 1:
-                settings.setdefault('x', int(base_image.size[0] / 18))
-                settings.setdefault('y', height - watermark.size[1] / 2.3)
-                settings.setdefault('font_size', int(watermark.size[1] / 4.8))
-                return settings
-            elif wrap_count == 2:
-                settings.setdefault('x', int(base_image.size[0] / 12))
-                settings.setdefault('y', int(height - watermark.size[1] / 2.1))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 3.9))
-                return settings
-            elif wrap_count == 3:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 12))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.2))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 3.7))
-                return settings
-
-        def settings_font_horizontal(wrap_count):
-            settings = {}
-            if wrap_count == 1:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 15))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.5))
-                settings.setdefault('font_size', int(watermark.size[1] / 3.5))
-                return settings
-            elif wrap_count == 2:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 5))
-                settings.setdefault('y', int(height - watermark.size[1] / 2))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 2.75))
-                return settings
-            elif wrap_count == 3:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 6))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.2))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 3.7))
-                return settings
-
-        def settings_font_vertical(wrap_count):
-            settings = {}
-            if wrap_count == 1:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 12))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.8))
-                settings.setdefault('font_size', int(watermark.size[1] / 5.2))
-                return settings
-            elif wrap_count == 2:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 12))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.4))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 3.5))
-                return settings
-            elif wrap_count == 3:
-                settings.setdefault('x', int((base_image.size[0] - watermark.size[0]) / 12))
-                settings.setdefault('y', int(height - watermark_line.size[1] / 1.2))
-                settings.setdefault('font_size', int(watermark_line.size[1] / 3.5))
-                return settings
-
-        base_image = Image.open(f'download_photo_{chat_id}.jpg')
-
-        width, height = base_image.size
-        num_lines = len(textwrap.wrap(text, width=20, max_lines=3))
-        if width > height:
-            watermark_line = Image.open('files/gradient_80.png').resize((base_image.size[0], int(base_image.size[1] / 5.5)))
-            watermark = Image.open('files/egoza_logo_cube.png').resize(
-                (int(watermark_line.size[1] * 1.5), int(watermark_line.size[1] * 1.5)))
-            position_watermark = (width - watermark.size[0], int(height - watermark.size[0] * 1.1))
-            position_line = (0, base_image.size[1] - watermark_line.size[1])
-            transparent = Image.new('RGB', (width, height), (0, 0, 0,))
-            transparent.paste(base_image, (0, 0))
-            transparent.paste(watermark_line, position_line, mask=watermark_line)
-            transparent.paste(watermark, position_watermark, mask=watermark)
-            font = ImageFont.truetype('fonts/AppetiteNew.ttf', settings_font_horizontal(num_lines).get('font_size'))
-            drawer = ImageDraw.Draw(transparent)
-            drawer.text((settings_font_horizontal(num_lines).get('x'), settings_font_horizontal(num_lines).get('y')),
-                        "\n".join(textwrap.wrap(text, width=20, max_lines=3)), align='center', font=font,
-                        fill=colors.get(color),
-                        stroke_width=4, stroke_fill=stroke_color)
-            transparent.save(f'download_photo_{chat_id}.jpg')
-        elif width < height:
-
-            watermark_line = Image.open('files/gradient_80.png').resize((base_image.size[0], int(base_image.size[1] / 7)))
-            watermark = Image.open('files/egoza_logo_cube.png').resize(
-                (int(watermark_line.size[1] * 1.6), int(watermark_line.size[1] * 1.5)))
-            position_watermark = (int(width - watermark.size[0]), int(height - watermark.size[0]))
-            position_line = (0, base_image.size[1] - watermark_line.size[1])
-            transparent = Image.new('RGB', (width, height), (0, 0, 0,))
-            transparent.paste(base_image, (0, 0))
-            transparent.paste(watermark_line, position_line, mask=watermark_line)
-            transparent.paste(watermark, position_watermark, mask=watermark)
-
-            font = ImageFont.truetype('fonts/AppetiteNew.ttf', settings_font_vertical(num_lines).get('font_size'))
-            drawer = ImageDraw.Draw(transparent)
-            drawer.text((settings_font_vertical(num_lines).get('x'), settings_font_vertical(num_lines).get('y')),
-                        "\n".join(textwrap.wrap(text, width=20, max_lines=3)), align='center', font=font,
-                        fill=colors.get(color),
-                        stroke_width=4, stroke_fill=stroke_color)
-            transparent.save(f'download_photo_{chat_id}.jpg')
-        else:
-            watermark_line = Image.open('files/gradient_80.png').resize((base_image.size[0], int(base_image.size[1] / 5.5)))
-            watermark = Image.open('files/egoza_logo_cube.png').resize(
-                (int(watermark_line.size[1] * 1.6), int(watermark_line.size[1] * 1.5)))
-            position_watermark = (width - watermark.size[0], int(height - watermark.size[0] * 1.05))
-            position_line = (0, base_image.size[1] - watermark_line.size[1])
-            transparent = Image.new('RGB', (width, height), (0, 0, 0,))
-            transparent.paste(base_image, (0, 0))
-            transparent.paste(watermark_line, position_line, mask=watermark_line)
-            transparent.paste(watermark, position_watermark, mask=watermark)
-            font = ImageFont.truetype('fonts/AppetiteNew.ttf', settings_font_cube(num_lines).get('font_size'))
-            drawer = ImageDraw.Draw(transparent)
-            drawer.text((settings_font_cube(num_lines).get('x'), settings_font_cube(num_lines).get('y')),
-                        "\n".join(textwrap.wrap(text, width=20, max_lines=3)), align='center', font=font,
-                        fill=colors.get(color),
-                        stroke_width=4, stroke_fill='black')
-            transparent.save(f'download_photo_{chat_id}.jpg')
-
-    @staticmethod
-    def paste_watermark(chat_id=None):
-        base_image = Image.open(f'download_photo_{chat_id}.jpg')
-        width, height = base_image.size
-        if width >= height:
-            watermark = Image.open('files/egoza_logo_cube.png').resize(
-                (int(base_image.size[1] / 4.5), int(base_image.size[1] / 6)))
-            position_watermark = (int(width - watermark.size[0]), height - watermark.size[1])
-            transparent = Image.new('RGB', (width, height), (0, 0, 0,))
-            transparent.paste(base_image, (0, 0))
-            transparent.paste(watermark, position_watermark, mask=watermark)
-            transparent.save(f'download_photo_{chat_id}.jpg')
-        else:
-            watermark = Image.open('files/egoza_logo_cube.png').resize(
-                (int((base_image.size[0] / 4.5)), int(base_image.size[1] / 6)))
-            position_watermark = (int(width - watermark.size[0]), int(height - watermark.size[1]))
-            transparent = Image.new('RGB', (width, height), (0, 0, 0,))
-            transparent.paste(base_image, (0, 0))
-            transparent.paste(watermark, position_watermark, mask=watermark)
-            transparent.save(f'download_photo_{chat_id}.jpg')
-
-    def send_photo_file(self):
-        files = {'photo': open(self.img, 'rb')}
-        requests.post(f'{URL}{BOT_TOKEN}/sendPhoto?chat_id={self.chat_id}', files=files)
-        files.clear()
-        os.remove(self.img)
 
 
 if __name__ == '__main__':
